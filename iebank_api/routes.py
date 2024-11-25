@@ -1,6 +1,7 @@
 from flask import Flask, request
 from iebank_api import db, app
 from iebank_api.models import Account
+from iebank_api.models import User
 
 from iebank_api import default_username, default_password
 
@@ -81,3 +82,46 @@ def sign_in():
 def verify_admin(username, password):
     print("Given:", username, password, "     real:", default_username, default_password, "     result:", username == default_username and password == default_password)
     return username == default_username and password == default_password
+
+
+
+
+@app.route('/users', methods=['POST'])
+def create_user():
+    print(request.json)
+    username = request.json['name']
+    password = request.json['password']
+    user = User(username, password)
+    db.session.add(user)
+    db.session.commit()
+    return format_user(user)
+
+@app.route('/users', methods=['GET'])
+def get_users():
+    users = User.query.all()
+    return {'users': [format_user(user) for user in users]}
+
+@app.route('/users/<int:id>', methods=['GET'])
+def get_user(id):
+    user = User.query.get(id)
+    return format_user(user)
+
+@app.route('/users/<int:id>', methods=['PUT'])
+def update_user(id):
+    user = User.query.get(id)
+    user.username = request.json['username']
+    db.session.commit()
+    return format_user(user)
+
+@app.route('/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    user = User.query.get(id)
+    db.session.delete(user)
+    db.session.commit()
+    return format_user(user)
+
+def format_user(user):
+    return {
+        'id': user.id,
+        'username': user.username,
+    }

@@ -20,3 +20,17 @@ class Account(db.Model):
         self.currency = currency
         self.balance = 0.0
         self.status = "Active"
+
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(32), nullable=False, unique=True)
+    password = db.Column(db.String(32), nullable=False)
+
+    def __repr__(self):
+        return '<Event %r>' % self.username
+
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
