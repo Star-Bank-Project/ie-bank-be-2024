@@ -2,6 +2,8 @@ from flask import Flask, request
 from iebank_api import db, app
 from iebank_api.models import Account
 
+from iebank_api import default_username, default_password
+
 @app.route('/')
 def hello_world():
     return 'Hello, World!'
@@ -65,3 +67,17 @@ def format_account(account):
         'status': account.status,
         'created_at': account.created_at
     }
+
+@app.route('/sign-in', methods=['POST'])
+def sign_in():
+    username = request.json['username']
+    password = request.json['password']
+
+    print("ADMIN TRIED LOGGING IN", username, password)
+    valid = verify_admin(username, password)
+    print("VALID:", valid)
+    return {'result': valid}
+
+def verify_admin(username, password):
+    print("Given:", username, password, "     real:", default_username, default_password, "     result:", username == default_username and password == default_password)
+    return username == default_username and password == default_password

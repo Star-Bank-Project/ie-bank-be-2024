@@ -18,6 +18,9 @@ elif os.getenv('ENV') == 'ghci':
 
 db = SQLAlchemy(app)
 
+default_username="admin"
+default_password="password"
+
 from iebank_api.models import Account
 
 with app.app_context():
