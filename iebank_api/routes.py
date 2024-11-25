@@ -69,7 +69,9 @@ def format_account(account):
         'created_at': account.created_at
     }
 
-@app.route('/sign-in', methods=['POST'])
+
+
+@app.route('/admin', methods=['POST'])
 def sign_in():
     username = request.json['username']
     password = request.json['password']
@@ -89,7 +91,7 @@ def verify_admin(username, password):
 @app.route('/users', methods=['POST'])
 def create_user():
     print(request.json)
-    username = request.json['name']
+    username = request.json['username']
     password = request.json['password']
     user = User(username, password)
     db.session.add(user)
