@@ -28,8 +28,9 @@ def skull():
 @app.route('/accounts', methods=['POST'])
 def create_account():
     name = request.json['name']
+    user_id = request.json['user_id']
     currency = request.json['currency']
-    account = Account(name, currency)
+    account = Account(name, user_id, currency)
     db.session.add(account)
     db.session.commit()
     return format_account(account)
@@ -62,6 +63,7 @@ def format_account(account):
     return {
         'id': account.id,
         'name': account.name,
+        'user_id': account.user_id,
         'account_number': account.account_number,
         'balance': account.balance,
         'currency': account.currency,
@@ -72,7 +74,7 @@ def format_account(account):
 
 
 @app.route('/admin', methods=['POST'])
-def sign_in():
+def admin_login():
     username = request.json['username']
     password = request.json['password']
 
@@ -127,3 +129,31 @@ def format_user(user):
         'id': user.id,
         'username': user.username,
     }
+
+
+
+@app.route('/users/login', methods=['POST'])
+def user_login():
+    username = request.json['username']
+    password = request.json['password']
+
+    print("USER TRIED LOGGING IN", username, password)
+    valid, user_id = verify_user(username, password)
+    print("VALID:", valid)
+    return {'result': valid, 'user_id': user_id}
+
+def verify_user(username, password):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        print("User not found.")
+        return False, -1
+    else:
+        print("User exists. Given password:", password, "     real:", default_password)
+        return user.password == password, user.id
+    
+
+
+@app.route('/accounts/users/<int:id>', methods=['GET'])
+def get_user_accounts(id):
+    accounts = Account.query.filter_by(user_id=id).all()
+    return {'accounts': [format_account(account) for account in accounts]}
