@@ -1,7 +1,5 @@
-__pycache__
-*.pyc
+**/__pycache__
+**/.venv
+**/.pytest_cache
+.coverage
 .env
-venv/
-.git/
-.gitignore
-.pytest_cache/
