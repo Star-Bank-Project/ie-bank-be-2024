@@ -1,9 +1,11 @@
+from dotenv import load_dotenv
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import os
 
 app = Flask(__name__)
+load_dotenv()
 
 # Select environment based on the ENV environment variable
 if os.getenv('ENV') == 'local':

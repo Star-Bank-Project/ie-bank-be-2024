@@ -1,9 +1,14 @@
 name: ie-bank-backend
-
 on:
   push:
+    paths: 
+      - 'backend/**'
+    branches:
+      - '*'  # This will run on any branch
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'backend/**'
   workflow_dispatch:
 
 permissions:
@@ -11,51 +16,55 @@ permissions:
   id-token: write
 
 env:
-  BACKEND_WEBAPP_DEV: aguadamillas-be-dev
+  BACKEND_WEBAPP_DEV: dkumlin-be-dev
+  BACKEND_WEBAPP_UAT: dkumlin-be-uat  # Add this line for UAT webapp name
 
 jobs:
   build:
-    
     runs-on: ubuntu-latest
     env:
       ENV: ghci
-
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
     - name: Set up Python 3.11
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v3
       with:
         python-version: "3.11"
     - name: Upgrade pip
       run: |
         python -m pip install --upgrade pip
+    - name: Debug JWT_SECRET_KEY
+      run: |
+        echo "Debugging JWT_SECRET_KEY"
+        echo "::add-mask::$JWT_SECRET_KEY"  # Mask the value in logs
+        echo "JWT_SECRET_KEY is set to: $JWT_SECRET_KEY"
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
     - name: Lint with flake8
       run: |
         pip install flake8 pytest
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        python -m pytest --cov=iebank_api -v
+        cd backend
+        python -m pytest -v
     - name: Upload artifact for deployment jobs
       uses: actions/upload-artifact@v4
       with:
         name: python-app
-        path: |
-          . 
+        path: backend
 
-  deploy:
+  deploy-dev:
     runs-on: ubuntu-latest
     needs: build
     environment:
       name: 'Development'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-
     steps:
     - name: Download artifact from build job
       uses: actions/download-artifact@v4
@@ -66,11 +75,33 @@ jobs:
     - uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-
     - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v3
+      uses: azure/webapps-deploy@v2
       id: deploy-to-webapp
       with:
         app-name: ${{ env.BACKEND_WEBAPP_DEV }}
         package: .
+
+  deploy-uat:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'UAT'
+      url: ${{ steps.deploy-to-webapp-uat.outputs.webapp-url }}
+    steps:
+    - name: Download artifact from build job
+      uses: actions/download-artifact@v4
+      with:
+        name: python-app
+        path: .
     
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: 'Deploy to Azure Web App (UAT)'
+      uses: azure/webapps-deploy@v2
+      id: deploy-to-webapp-uat
+      with:
+        app-name: ${{ env.BACKEND_WEBAPP_UAT }}
+        package: .
