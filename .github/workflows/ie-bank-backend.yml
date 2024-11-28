@@ -25,12 +25,12 @@ env:
   # Dev environment
   KEY_VAULT_NAME_DEV: makenna-keyvault-dev
   BACKEND_WEBAPP_DEV: makenna-be-dev
-  IMAGE_NAME_DEV: makennaacrdev.azurecr.io/iebank-be:latest
+  IMAGE_NAME_DEV: makennaacrdev.azurecr.io/iebank-be
 
   # UAT environment
   KEY_VAULT_NAME_UAT: makenna-keyvault-uat
   BACKEND_WEBAPP_UAT: makenna-be-uat
-  IMAGE_NAME_UAT: makennaacruat.azurecr.io/iebank-be:latest
+  IMAGE_NAME_UAT: makennaacruat.azurecr.io/iebank-be
 
 jobs:
   test:
@@ -94,9 +94,10 @@ jobs:
 
       - name: Build and push image (Dev)
         run: |
-          docker build . -t ${{ env.IMAGE_NAME_DEV }}:${{ steps.image-version.outputs.version }}
+          IMAGE_TAG=${{ steps.image-version.outputs.version }}
+          docker build . -t ${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
           docker build . -t ${{ env.IMAGE_NAME_DEV }}:latest
-          docker push ${{ env.IMAGE_NAME_DEV }}:${{ steps.image-version.outputs.version }}
+          docker push ${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
           docker push ${{ env.IMAGE_NAME_DEV }}:latest
 
   deploy-dev:
@@ -152,9 +153,10 @@ jobs:
 
       - name: Build and push image (UAT)
         run: |
-          docker build . -t ${{ env.IMAGE_NAME_UAT }}:${{ steps.image-version.outputs.version }}
+          IMAGE_TAG=${{ steps.image-version.outputs.version }}
+          docker build . -t ${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
           docker build . -t ${{ env.IMAGE_NAME_UAT }}:latest
-          docker push ${{ env.IMAGE_NAME_UAT }}:${{ steps.image-version.outputs.version }}
+          docker push ${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
           docker push ${{ env.IMAGE_NAME_UAT }}:latest
 
   deploy-uat:
