@@ -1,179 +1,113 @@
-name: ie-bank-backend
+name: ie-bank-frontend
 
 on:
-  push:  # Trigger on all branches
+  workflow_dispatch: # Allows you to manually trigger the workflow from the GitHub Actions tab
+  pull_request:
     branches:
-      - '**'
-  pull_request:  # Trigger on all pull requests
-    branches: ['*']
-    types: ['opened', 'synchronize', 'reopened', 'closed', 'edited']
-  workflow_dispatch:  # Manual trigger
-
-permissions:
-  contents: read
-  id-token: write
+      - '*' # Matches all branches
+  push:
+    branches:
+      - '*' # Matches all branches
+    paths-ignore:
+      - 'scripts/**'
 
 env:
-  # Testing environment
-  ENV: ghci
-  SQLALCHEMY_DATABASE_URI: sqlite:///test.db
-
-  # Dev environment
-  BACKEND_WEBAPP_DEV: makenna-be-dev
-  DOCKER_REGISTRY_SERVER_URL_DEV: makennaacrdev.azurecr.io
-  IMAGE_NAME_DEV: iebank-be
-  KEY_VAULT_NAME_DEV: makenna-keyvault-dev
-
-  # UAT environment
-  BACKEND_WEBAPP_UAT: makenna-be-uat
-  DOCKER_REGISTRY_SERVER_URL_UAT: makennaacruat.azurecr.io
-  IMAGE_NAME_UAT: iebank-be
-  KEY_VAULT_NAME_UAT: makenna-keyvault-uat
-
-  # Common credentials
-  KEY_VAULT_SECRET_NAME_ACR_USERNAME: acrAdminUsername
-  KEY_VAULT_SECRET_NAME_ACR_PASSWORD: acrAdminPassword0
-  MANAGED_ID_KEYVAULT_KEY: aad46558-9580-4fa3-9639-24be07c0b670
+  FRONTEND_WEBAPP_DEV: ayabelloum-fe-dev
+  FRONTEND_WEBAPP_UAT: ayabelloum-fe-uat
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Tests
-        run: python -m pytest --cov=iebank_api -v
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: htmlcov
-
   build-dev:
     runs-on: ubuntu-latest
-    needs: test
-    outputs:
-      image-version: ${{ steps.image-version.outputs.version }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Login to Azure CLI
-        uses: azure/login@v1
+      - name: Set up Node.js version
+        uses: actions/setup-node@v4
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          node-version: '18.x'
+          cache: 'npm'
 
-      - name: Get Docker Credentials from Azure Key Vault
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-
-      - name: Login to Docker Registry
-        uses: azure/docker-login@v2
-        with:
-          login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-
-      - name: Set Image Version
-        id: image-version
-        run: echo "version=$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_OUTPUT
-
-      - name: Build and Push Image (Dev)
+      - name: npm install, build, and test
         run: |
-          IMAGE_TAG=${{ steps.image-version.outputs.version }}
-          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
-          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
-          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
-          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
+          npm install
+          npm run build:dev # This command will build the Vue.js app using .env.development variables into the dist-dev/ folder
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-app-dev
+          path: dist-dev/
+
+  build-uat:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: npm install, build, and test
+        run: |
+          npm install
+          npm run build:uat # This command will build the Vue.js app using .env.uat variables into the dist-uat/ folder
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-app-uat
+          path: dist-uat/
 
   deploy-dev:
+    if: (github.event_name == 'push') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: build-dev
     environment:
       name: 'Development'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: node-app-dev
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Web App - Dev
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.BACKEND_WEBAPP_DEV }}
-          images: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${{ needs.build-dev.outputs.image-version }}
-
-  build-uat:
-    runs-on: ubuntu-latest
-    needs: test
-    outputs:
-      image-version: ${{ steps.image-version.outputs.version }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Login to Azure CLI
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Get Docker Credentials from Azure Key Vault (UAT)
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
-
-      - name: Login to Docker Registry
-        uses: azure/docker-login@v2
-        with:
-          login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-
-      - name: Set Image Version
-        id: image-version
-        run: echo "version=$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_OUTPUT
-
-      - name: Build and Push Image (UAT)
-        run: |
-          IMAGE_TAG=${{ steps.image-version.outputs.version }}
-          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
-          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:latest
-          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
-          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:latest
+          app-name: ${{ env.FRONTEND_WEBAPP_DEV }}
+          package: .
 
   deploy-uat:
+    if: (github.event_name == 'push') || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: build-uat
     environment:
       name: 'UAT'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: node-app-uat
+
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Web App - UAT
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.BACKEND_WEBAPP_UAT }}
-          images: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${{ needs.build-uat.outputs.image-version }}
+          app-name: ${{ env.FRONTEND_WEBAPP_UAT }}
+          package: .
