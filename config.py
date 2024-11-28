@@ -1,22 +1,44 @@
 import os
+from dotenv import load_dotenv
 
-class Config(object): 
+load_dotenv()
+
+
+class Config(object):
+    SECRET_KEY = "this-really-needs-to-be-changed"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    DEBUG = False
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
 
 class LocalConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///local.db'
+    # Use SQLite for local development
+    SQLALCHEMY_DATABASE_URI = "sqlite:///local.db"
     DEBUG = True
 
-class GithubCIConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///test.db'
-    DEBUG = True
 
 class DevelopmentConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'postgresql://{dbuser}:{dbpass}@{dbhost}/{dbname}'.format(
-    dbuser=os.getenv('DBUSER'),
-    dbpass=os.getenv('DBPASS'),
-    dbhost=os.getenv('DBHOST'),
-    dbname=os.getenv('DBNAME')
+    # Use PostgreSQL for development and UAT
+    SQLALCHEMY_DATABASE_URI = "postgresql://{dbuser}:{dbpass}@{dbhost}/{dbname}".format(
+        dbuser=os.getenv("DBUSER"),
+        dbpass=os.getenv("DBPASS"),
+        dbhost=os.getenv("DBHOST"),
+        dbname=os.getenv("DBNAME"),
     )
+    DEBUG = True
+
+
+class ProductionConfig(Config):
+    # Use PostgreSQL or another production database
+    SQLALCHEMY_DATABASE_URI = "postgresql://{dbuser}:{dbpass}@{dbhost}/{dbname}".format(
+        dbuser=os.getenv("DBUSER"),
+        dbpass=os.getenv("DBPASS"),
+        dbhost=os.getenv("DBHOST"),
+        dbname=os.getenv("DBNAME"),
+    )
+    DEBUG = False
+
+
+class GithubCIConfig(Config):
+    # Use SQLite for testing in GitHub Actions
+    SQLALCHEMY_DATABASE_URI = "sqlite:///test.db"  # Ephemeral database for tests
     DEBUG = True

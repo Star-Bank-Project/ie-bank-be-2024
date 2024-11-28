@@ -10,7 +10,7 @@ def testing_client(scope='module'):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///local.db'
     with app.app_context():
         db.create_all()
-        account = Account('Test Account', 0, '€')
+        account = Account('Test Account',1, '€')
         db.session.add(account)
         db.session.commit()
 
