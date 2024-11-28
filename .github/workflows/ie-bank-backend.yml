@@ -2,8 +2,10 @@ name: ie-bank-backend
 
 on:
   push:
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+    types: ["opened", "synchronize", "reopened", "closed", "edited"]
   workflow_dispatch:
 
 permissions:
@@ -15,16 +17,10 @@ env:
   BACKEND_WEBAPP_DEV: makenna-be-dev
   BACKEND_WEBAPP_UAT: makenna-be-uat
   # Container registry details
-  SUBSCRIPTION_ID_DEV: e0b9cada-61bc-4b5a-bd7a-52c606726b3b
   DOCKER_REGISTRY_SERVER_URL_DEV: makennaacrdev.azurecr.io
   DOCKER_REGISTRY_SERVER_URL_UAT: makennaacruat.azurecr.io
-  IMAGE_NAME_DEV: makennaacrdev.azurecr.io/iebank-be:dev
-  IMAGE_NAME_UAT: makennaacruat.azurecr.io/iebank-be:uat
-  KEY_VAULT_SECRET_NAME_ACR_USERNAME: acrAdminUsername
-  KEY_VAULT_SECRET_NAME_ACR_PASSWORD: acrAdminPassword0
-  KEY_VAULT_NAME_DEV: makenna-keyvault-dev
-  KEY_VAULT_NAME_UAT: makenna-keyvault-uat
-  MANAGED_ID_KEYVAULT_KEY: bd91559e-5f2c-47a4-a4a4-2097cb991566
+  IMAGE_NAME_DEV: iebank-be:dev
+  IMAGE_NAME_UAT: iebank-be:uat
 
 jobs:
   build:
@@ -62,20 +58,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get Docker registry credentials from Azure Key Vault
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "MANAGED_ID_OBJECT_ID=$(az keyvault secret show --name ${{ env.MANAGED_ID_KEYVAULT_KEY }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-
       - name: Login to Docker Registry
         uses: azure/docker-login@v2
         with:
           login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Set image version
         id: image-version
@@ -89,9 +77,8 @@ jobs:
           docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
 
   deploy-dev:
-    if: github.event_name == 'push' && github.ref != 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
     needs: build
+    runs-on: ubuntu-latest
     environment:
       name: 'Development'
 
@@ -107,9 +94,9 @@ jobs:
           images: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${{ needs.build.outputs.image-version }}
 
   deploy-uat:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
+    runs-on: ubuntu-latest
     environment:
       name: 'UAT'
 
@@ -118,20 +105,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get Docker registry credentials from Azure Key Vault (UAT)
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
-            echo "MANAGED_ID_OBJECT_ID=$(az keyvault secret show --name ${{ env.MANAGED_ID_KEYVAULT_KEY }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
-
       - name: Login to Docker Registry (UAT)
         uses: azure/docker-login@v2
         with:
           login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Deploy to Azure Web App - UAT
         uses: azure/webapps-deploy@v3
