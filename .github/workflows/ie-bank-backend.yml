@@ -1,10 +1,9 @@
 name: ie-bank-backend
 
 on:
-  push:
-    branches: ["main"]
+  push: # Trigger on any branch push
   pull_request:
-    branches: ["main"]
+    branches: ["*"] # Any branch for pull requests
     types: ["opened", "synchronize", "reopened", "closed", "edited"]
   workflow_dispatch:
 
@@ -77,8 +76,9 @@ jobs:
           docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
 
   deploy-dev:
-    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'pull_request')
     runs-on: ubuntu-latest
+    needs: build
     environment:
       name: 'Development'
 
@@ -94,9 +94,9 @@ jobs:
           images: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${{ needs.build.outputs.image-version }}
 
   deploy-uat:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    needs: build
     environment:
       name: 'UAT'
 
