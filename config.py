@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,12 +11,13 @@ class Config(object):
 
 
 class LocalConfig(Config):
+    # Use SQLite for local development
     SQLALCHEMY_DATABASE_URI = "sqlite:///local.db"
     DEBUG = True
 
 
-# Use for both uat and dev
 class DevelopmentConfig(Config):
+    # Use PostgreSQL for development and UAT
     SQLALCHEMY_DATABASE_URI = "postgresql://{dbuser}:{dbpass}@{dbhost}/{dbname}".format(
         dbuser=os.getenv("DBUSER"),
         dbpass=os.getenv("DBPASS"),
@@ -28,5 +28,17 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = "sqlite:///local.db"
+    # Use PostgreSQL or another production database
+    SQLALCHEMY_DATABASE_URI = "postgresql://{dbuser}:{dbpass}@{dbhost}/{dbname}".format(
+        dbuser=os.getenv("DBUSER"),
+        dbpass=os.getenv("DBPASS"),
+        dbhost=os.getenv("DBHOST"),
+        dbname=os.getenv("DBNAME"),
+    )
+    DEBUG = False
+
+
+class GithubCIConfig(Config):
+    # Use SQLite for testing in GitHub Actions
+    SQLALCHEMY_DATABASE_URI = "sqlite:///test.db"  # Ephemeral database for tests
     DEBUG = True
