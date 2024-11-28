@@ -18,7 +18,7 @@ env:
   SQLALCHEMY_DATABASE_URI: sqlite:///test.db  # SQLite for testing
 
   # Dynamic Docker Registry Variables
-  DOCKER_REGISTRY_NAME: makennaacrdev # Replace with your actual registry name
+  DOCKER_REGISTRY_NAME: makennaacrdev  # Replace with your actual registry name
   ACR_USERNAME_SECRET_NAME: acrAdminUsername
   ACR_PASSWORD_SECRET_NAME: acrAdminPassword0
 
@@ -101,6 +101,7 @@ jobs:
           docker push ${{ env.IMAGE_NAME_DEV }}:latest
 
   deploy-dev:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: build-dev
     environment:
