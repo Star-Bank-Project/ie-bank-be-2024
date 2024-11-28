@@ -136,6 +136,3 @@ jobs:
         with:
           app-name: ${{ env.BACKEND_WEBAPP_UAT }}
           images: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${{ needs.build.outputs.image-version }}
-
-
-      
