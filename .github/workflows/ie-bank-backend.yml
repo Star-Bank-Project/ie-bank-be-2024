@@ -36,10 +36,8 @@ env:
   MANAGED_ID_KEYVAULT_KEY: aad46558-9580-4fa3-9639-24be07c0b670
 
 jobs:
-  build-dev:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      image-version: ${{ steps.image-version.outputs.version }}
 
     steps:
       - name: Checkout Code
@@ -57,6 +55,22 @@ jobs:
 
       - name: Run Tests
         run: python -m pytest --cov=iebank_api -v
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov
+
+  build-dev:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-version: ${{ steps.image-version.outputs.version }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
       - name: Login to Azure CLI
         uses: azure/login@v1
@@ -108,6 +122,7 @@ jobs:
 
   build-uat:
     runs-on: ubuntu-latest
+    needs: test
     outputs:
       image-version: ${{ steps.image-version.outputs.version }}
 
