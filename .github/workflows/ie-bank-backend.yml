@@ -56,7 +56,7 @@ jobs:
       ENV: dev  # Set to 'dev' for the development environment
       DBUSER: makiwarner  # Database user
       DBPASS: Chip3548  # Database password
-      DBHOST: makiwarner-dbsrv-dev.postgresql  # Database host
+      DBHOST: makiwarner-dbsrv-dev.postgresql.com  # Database host
       DBNAME: makiwarner-db-uat  # Database name
       SQLALCHEMY_DATABASE_URI: postgresql://${DBUSER}:${DBPASS}@${DBHOST}/${DBNAME}  # SQLAlchemy database URI
 
