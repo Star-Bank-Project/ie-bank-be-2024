@@ -7,8 +7,12 @@ load_dotenv()  # Load environment variables from .env file
 
 app = Flask(__name__)
 
-# Load environment variables
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
+if os.getenv('ENV') == 'local':
+    app.config.from_object('config.LocalConfig')
+elif os.getenv('ENV') == 'dev':
+    app.config.from_object('config.DevelopmentConfig')
+else:
+    raise RuntimeError("Invalid or missing ENV variable")
 
 db = SQLAlchemy(app)
 
