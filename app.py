@@ -7,17 +7,7 @@ load_dotenv()  # Load environment variables from .env file
 
 app = Flask(__name__)
 
-if os.getenv('ENV') == 'local':
-    app.config.from_object('config.LocalConfig')
-elif os.getenv('ENV') == 'dev':
-    app.config.from_object('config.DevelopmentConfig')
-else:
-    raise RuntimeError("Invalid or missing ENV variable")
+# Load environment variables
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
 db = SQLAlchemy(app)
-
-# Import your routes and models
-from iebank_api import routes, models
-
-if __name__ == '__main__':
-    app.run(debug=True)
