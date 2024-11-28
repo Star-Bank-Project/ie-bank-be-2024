@@ -48,9 +48,9 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Test with pytest
-        env:
-          SQLALCHEMY_DATABASE_URI: postgresql://${{ secrets.DBUSER }}:${{ secrets.DBPASS }}@${{ secrets.DBHOST }}/${{ secrets.DBNAME }}
-        run: python -m pytest --cov=iebank_api -v
+          env:
+            SQLALCHEMY_DATABASE_URI: postgresql://${{ secrets.DBUSER }}:${{ secrets.DBPASS }}@${{ secrets.DBHOST }}:${{ secrets.DBPORT }}/${{ secrets.DBNAME }}
+          run: python -m pytest --cov=iebank_api -v
 
       - name: Login via Azure CLI
         uses: azure/login@v1
