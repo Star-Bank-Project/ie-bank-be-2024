@@ -1,76 +1,179 @@
 name: ie-bank-backend
 
 on:
-  push:
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+  push:  # Trigger on all branches
+    branches:
+      - '**'
+  pull_request:  # Trigger on all pull requests
+    branches: ['*']
+    types: ['opened', 'synchronize', 'reopened', 'closed', 'edited']
+  workflow_dispatch:  # Manual trigger
 
 permissions:
   contents: read
   id-token: write
 
 env:
-  BACKEND_WEBAPP_DEV: aguadamillas-be-dev
+  # Testing environment
+  ENV: ghci
+  SQLALCHEMY_DATABASE_URI: sqlite:///test.db
+
+  # Dev environment
+  BACKEND_WEBAPP_DEV: makenna-be-dev
+  DOCKER_REGISTRY_SERVER_URL_DEV: makennaacrdev.azurecr.io
+  IMAGE_NAME_DEV: iebank-be
+  KEY_VAULT_NAME_DEV: makenna-keyvault-dev
+
+  # UAT environment
+  BACKEND_WEBAPP_UAT: makenna-be-uat
+  DOCKER_REGISTRY_SERVER_URL_UAT: makennaacruat.azurecr.io
+  IMAGE_NAME_UAT: iebank-be
+  KEY_VAULT_NAME_UAT: makenna-keyvault-uat
+
+  # Common credentials
+  KEY_VAULT_SECRET_NAME_ACR_USERNAME: acrAdminUsername
+  KEY_VAULT_SECRET_NAME_ACR_PASSWORD: acrAdminPassword0
+  MANAGED_ID_KEYVAULT_KEY: aad46558-9580-4fa3-9639-24be07c0b670
 
 jobs:
-  build:
-    
+  test:
     runs-on: ubuntu-latest
-    env:
-      ENV: ghci
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-    - name: Upgrade pip
-      run: |
-        python -m pip install --upgrade pip
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-    - name: Lint with flake8
-      run: |
-        pip install flake8 pytest
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        python -m pytest --cov=iebank_api -v
-    - name: Upload artifact for deployment jobs
-      uses: actions/upload-artifact@v4
-      with:
-        name: python-app
-        path: |
-          . 
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-  deploy:
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Tests
+        run: python -m pytest --cov=iebank_api -v
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov
+
+  build-dev:
     runs-on: ubuntu-latest
-    needs: build
+    needs: test
+    outputs:
+      image-version: ${{ steps.image-version.outputs.version }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Docker Credentials from Azure Key Vault
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
+            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_DEV }} --query value -o tsv)" >> $GITHUB_ENV
+
+      - name: Login to Docker Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Set Image Version
+        id: image-version
+        run: echo "version=$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Image (Dev)
+        run: |
+          IMAGE_TAG=${{ steps.image-version.outputs.version }}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${IMAGE_TAG}
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:latest
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build-dev
     environment:
       name: 'Development'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
-    - name: Download artifact from build job
-      uses: actions/download-artifact@v4
-      with:
-        name: python-app
-        path: .
-    
-    - uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v3
-      id: deploy-to-webapp
-      with:
-        app-name: ${{ env.BACKEND_WEBAPP_DEV }}
-        package: .
-    
+      - name: Deploy to Azure Web App - Dev
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.BACKEND_WEBAPP_DEV }}
+          images: ${{ env.DOCKER_REGISTRY_SERVER_URL_DEV }}/${{ env.IMAGE_NAME_DEV }}:${{ needs.build-dev.outputs.image-version }}
+
+  build-uat:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-version: ${{ steps.image-version.outputs.version }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Docker Credentials from Azure Key Vault (UAT)
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
+            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_UAT }} --query value -o tsv)" >> $GITHUB_ENV
+
+      - name: Login to Docker Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Set Image Version
+        id: image-version
+        run: echo "version=$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Image (UAT)
+        run: |
+          IMAGE_TAG=${{ steps.image-version.outputs.version }}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:latest
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${IMAGE_TAG}
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:latest
+
+  deploy-uat:
+    runs-on: ubuntu-latest
+    needs: build-uat
+    environment:
+      name: 'UAT'
+
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App - UAT
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.BACKEND_WEBAPP_UAT }}
+          images: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${{ needs.build-uat.outputs.image-version }}
