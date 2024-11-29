@@ -1,13 +1,12 @@
 name: ie-bank-backend
 
 on:
-  push:  # Trigger on all branches
+  push:  
     branches:
       - '**'
-  pull_request:  # Trigger on all pull requests
+  pull_request:  
     branches: ['*']
-    types: ['opened', 'synchronize', 'reopened', 'closed', 'edited']
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  
 
 permissions:
   contents: read
