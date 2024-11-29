@@ -16,8 +16,8 @@ permissions:
   id-token: write
 
 env:
-  BACKEND_WEBAPP_DEV: dkumlin-be-dev
-  BACKEND_WEBAPP_UAT: dkumlin-be-uat  # Add this line for UAT webapp name
+  BACKEND_WEBAPP_DEV: makenna-be-dev
+  BACKEND_WEBAPP_UAT: makenna-be-uat  # Add this line for UAT webapp name
 
 jobs:
   build:
