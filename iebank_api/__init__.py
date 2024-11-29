@@ -7,15 +7,18 @@ import os
 app = Flask(__name__)
 load_dotenv()
 
+env = os.getenv('ENV', 'local')
+
 # Select environment based on the ENV environment variable
-if os.getenv('ENV') == 'local':
+if env == 'local':
     print("Running in local mode")
     app.config.from_object('config.LocalConfig')
-elif os.getenv('ENV') == 'dev':
+elif env == 'dev':
     print("Running in development mode")
     app.config.from_object('config.DevelopmentConfig')
+
 elif os.getenv('ENV') == 'ghci':
-    print("Running in github mode")
+    print("Running in GitHub CI mode")
     app.config.from_object('config.GithubCIConfig')
 
 db = SQLAlchemy(app)
