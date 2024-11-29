@@ -5,7 +5,6 @@ load_dotenv()
 
 
 class Config(object):
-    SECRET_KEY = "this-really-needs-to-be-changed"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
