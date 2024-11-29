@@ -5,6 +5,10 @@ load_dotenv()
 
 
 class Config(object):
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+    raise ValueError("SECRET_KEY is not set. Please set it in your environment.")
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
