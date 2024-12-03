@@ -205,6 +205,9 @@ def get_transactions():
 
 @app.route('/transactions/<int:id>', methods=['GET'])
 def get_user_transactions(id):
+    if id == -1:
+        print("User invalid (-1)")
+        return {}
     transactions = Transaction.query.filter(or_(Transaction.user_from==id, Transaction.user_to==id)).all()
     return {'transactions': [format_transaction(transaction) for transaction in transactions]}
 
