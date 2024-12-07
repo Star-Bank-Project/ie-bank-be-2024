@@ -6,6 +6,9 @@ from iebank_api import default_username, default_password
 
 from sqlalchemy import or_
 
+from datetime import datetime
+from random import randint, choice
+
 @app.route('/')
 def hello_world():
     return 'Hello, World!'
@@ -220,4 +223,84 @@ def format_transaction(transaction):
         'user_from': transaction.user_from,
         'user_to' : transaction.user_to,
         'amount' : transaction.amount,
+    }
+
+# Simulation Routes
+@app.route('/simulate_account_access', methods=['POST'])
+def simulate_account_access():
+    success_rate = request.json.get('success_rate', 95)
+    attempts = request.json.get('attempts', 1000)
+    logs = []
+    for _ in range(attempts):
+        success = randint(1, 100) <= success_rate
+        logs.append({'timestamp': datetime.now(datetime.timezone.utc), 'success': success})
+    return {"message": "Simulation complete", "logs": logs[:10]}
+
+@app.route('/simulate_page_load', methods=['POST'])
+def simulate_page_load():
+    requests = request.json.get('requests', 1000)
+    max_latency = request.json.get('max_latency', 1000)  # ms
+    latency_threshold = request.json.get('latency_threshold', 500)  # ms
+    logs = []
+    for _ in range(requests):
+        latency = randint(100, max_latency)
+        logs.append({
+            'timestamp': datetime.now(datetime.timezone.utc),
+            'latency': latency,
+            'success': latency <= latency_threshold
+        })
+    return {"message": "Page load simulation complete", "logs": logs[:10]}
+
+@app.route('/simulate_transaction', methods=['POST'])
+def simulate_transaction():
+    transactions = request.json.get('transactions', 100)
+    threshold = request.json.get('threshold', 2000)  # ms
+    logs = []
+    for _ in range(transactions):
+        processing_time = randint(100, 3000)  # Simulated processing time in ms
+        success = processing_time <= threshold
+        logs.append({
+            'timestamp': datetime.now(datetime.timezone.utc),
+            'processing_time': processing_time,
+            'success': success
+        })
+    return {"message": "Transaction simulation complete", "logs": logs[:10]}
+
+@app.route('/simulate_login', methods=['POST'])
+def simulate_login():
+    attempts = request.json.get('attempts', 1000)
+    success_rate = request.json.get('success_rate', 99.9)
+    logs = []
+    for _ in range(attempts):
+        success = randint(1, 1000) <= (success_rate * 10)
+        logs.append({
+            'timestamp': datetime.now(datetime.timezone.utc),
+            'success': success
+        })
+    return {"message": "Login simulation complete", "logs": logs[:10]}
+
+@app.route('/simulate_fund_transfer', methods=['POST'])
+def simulate_fund_transfer():
+    transfers = request.json.get('transfers', 1000)
+    error_rate = request.json.get('error_rate', 0.01)
+    logs = []
+    for _ in range(transfers):
+        is_error = randint(1, 10000) <= (error_rate * 10000)
+        logs.append({
+            'timestamp': datetime.now(datetime.timezone.utc),
+            'is_error': is_error
+        })
+    return {"message": "Fund transfer simulation complete", "logs": logs[:10]}
+
+# Analytics Routes
+@app.route('/analyze_logs', methods=['POST'])
+def analyze_logs():
+    logs = request.json.get('logs', [])
+    total = len(logs)
+    successes = sum(1 for log in logs if log.get('success', False))
+    success_rate = (successes / total) * 100 if total > 0 else 0
+    return {
+        "total_attempts": total,
+        "successes": successes,
+        "success_rate": success_rate
     }

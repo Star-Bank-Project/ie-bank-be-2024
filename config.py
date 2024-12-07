@@ -41,3 +41,4 @@ class GithubCIConfig(Config):
     # Use SQLite for testing in GitHub Actions
     SQLALCHEMY_DATABASE_URI = "sqlite:///test.db"  # Ephemeral database for tests
     DEBUG = True
+
