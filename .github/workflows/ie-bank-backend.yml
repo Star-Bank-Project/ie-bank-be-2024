@@ -6,7 +6,9 @@ on:
       - '**'
   pull_request:  
     branches: ['*']
-  workflow_dispatch:  
+
+  workflow_dispatch:  # Manual trigger
+
 
 permissions:
   contents: read
@@ -28,6 +30,12 @@ env:
   DOCKER_REGISTRY_SERVER_URL_UAT: makennaacruat.azurecr.io
   IMAGE_NAME_UAT: iebank-be
   KEY_VAULT_NAME_UAT: makenna-keyvault-uat
+
+  # Prod environment
+  BACKEND_WEBAPP_PROD: makenna-be-prod
+  DOCKER_REGISTRY_SERVER_URL_PROD: makennaacrprod.azurecr.io
+  IMAGE_NAME_PROD: iebank-be
+  KEY_VAULT_NAME_PROD: makenna-keyvault-prod
 
   # Common credentials
   KEY_VAULT_SECRET_NAME_ACR_USERNAME: acrAdminUsername
@@ -176,3 +184,61 @@ jobs:
         with:
           app-name: ${{ env.BACKEND_WEBAPP_UAT }}
           images: ${{ env.DOCKER_REGISTRY_SERVER_URL_UAT }}/${{ env.IMAGE_NAME_UAT }}:${{ needs.build-uat.outputs.image-version }}
+
+  build-prod:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-version: ${{ steps.image-version.outputs.version }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Docker Credentials from Azure Key Vault (Prod)
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "REGISTRY_USERNAME=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_USERNAME }} --vault-name ${{ env.KEY_VAULT_NAME_PROD }} --query value -o tsv)" >> $GITHUB_ENV
+            echo "REGISTRY_PASSWORD=$(az keyvault secret show --name ${{ env.KEY_VAULT_SECRET_NAME_ACR_PASSWORD }} --vault-name ${{ env.KEY_VAULT_NAME_PROD }} --query value -o tsv)" >> $GITHUB_ENV
+
+      - name: Login to Docker Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Set Image Version
+        id: image-version
+        run: echo "version=$(date +'%Y.%m.%d.%H.%M')" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Image (Prod)
+        run: |
+          IMAGE_TAG=${{ steps.image-version.outputs.version }}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}/${{ env.IMAGE_NAME_PROD }}:${IMAGE_TAG}
+          docker build . -t ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}/${{ env.IMAGE_NAME_PROD }}:latest
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}/${{ env.IMAGE_NAME_PROD }}:${IMAGE_TAG}
+          docker push ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}/${{ env.IMAGE_NAME_PROD }}:latest
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: build-prod
+    environment:
+      name: 'Production'
+
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App - Prod
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.BACKEND_WEBAPP_PROD }}
+          images: ${{ env.DOCKER_REGISTRY_SERVER_URL_PROD }}/${{ env.IMAGE_NAME_PROD }}:${{ needs.build-prod.outputs.image-version }}
