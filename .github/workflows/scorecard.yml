@@ -18,7 +18,7 @@ jobs:
       id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb # v4.1.1
         with:
           persist-credentials: false
 
@@ -29,7 +29,7 @@ jobs:
           results_format: sarif
           publish_results: true
       - name: "Upload artifact"
-        uses: actions/upload-artifact@97a0fba1372883ab732affbe8f94b823f91727db # v3.pre.node20
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.pre.node20
         with:
           name: SARIF file
           path: results.sarif
